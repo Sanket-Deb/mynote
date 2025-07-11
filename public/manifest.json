@@ -1,0 +1,21 @@
+{
+  "name": "myNote",
+  "short_name": "myNote",
+  "description": "A minimal note taking app",
+  "start_url": "/",
+  "display": "standalone",
+  "background color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "/icon-1.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/icon-2.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml"
+    }
+  ]
+}
