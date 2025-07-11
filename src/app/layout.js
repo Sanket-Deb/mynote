@@ -1,6 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import RegisterSW from "./register-sw"; // client component for SW
+import RegisterSW from "./register-sw"; // client component
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,12 +15,15 @@ const geistMono = Geist_Mono({
 export const metadata = {
   title: "myNote - Minimal Notepad PWA",
   description: "A privacy-first online notepad",
-  themeColor: "#3b82f6",
   manifest: "/manifest.json",
   icons: {
     icon: "/icon-1.svg",
     apple: "/icon-1.svg",
   },
+};
+
+export const viewport = {
+  themeColor: "#3b82f6", // ✅ moved here
 };
 
 export default function RootLayout({ children }) {
@@ -29,8 +32,8 @@ export default function RootLayout({ children }) {
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <RegisterSW />
         {children}
+        <RegisterSW /> {/* Move here */}
       </body>
     </html>
   );
