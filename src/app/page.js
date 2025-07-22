@@ -1,28 +1,51 @@
 "use client";
+
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { nanoid } from "nanoid";
 
 const Home = () => {
-  const [note, setNote] = useState("");
+  const [notes, setNotes] = useState([]);
+  const router = useRouter();
 
   // Load saved note
   useEffect(() => {
-    const saved = localStorage.getItem("note");
-    if (saved) setNote(saved);
+    const stored = JSON.parse(localStorage.getItem("notes")) || [];
+    setNotes(stored);
   }, []);
 
-  // Save on change
-  useEffect(() => {
-    localStorage.setItem("note", note);
-  }, [note]);
+  const handleNewNote = () => {
+    const id = nanoid(6);
+    const newNote = {
+      id,
+      content: "",
+      lastModified: new Date().toISOString(),
+    };
+
+    const updated = [newNote, ...notes];
+    localStorage.setItem("notes", JSON.stringify(updated));
+    router.push(`/note/${id}`);
+  };
 
   return (
-    <main className="flex items-center justify-center min-h-screen p-4 bg-gray-100">
-      <textarea
-        className="w-full h-[90vh] max-w-3xl p-4 text-lg text-gray-800 bg-white border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-400"
-        value={note}
-        onChange={(e) => setNote(e.target.value)}
-        placeholder="Start typing your note here..."
-      />
+    <main className="p-6">
+      <h1 className="text-2xl font-bold mb-4">📒 Your Notes</h1>
+      <button
+        onClick={handleNewNote}
+        className="bg-blue-400 text-white px-4 py-2 rounded mb-4"
+      >
+        + New Note
+      </button>
+
+      <ul>
+        {notes.map((note) => (
+          <li key={note.id}>
+            <a className="text-blue-600 underline" href={`/note/${note.id}`}>
+              {note.id} - {note.content.slice(0, 20) || "Untitled"}
+            </a>
+          </li>
+        ))}
+      </ul>
     </main>
   );
 };
