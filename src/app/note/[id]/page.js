@@ -5,17 +5,19 @@ import { useParams, useRouter } from "next/navigation";
 
 const NotePage = () => {
   const { id } = useParams(); // Get note ID from URL
-  const [text, setText] = useState(""); // State for textarea
   const router = useRouter();
 
-  // On mount, check if note exists. If not, create it.
+  const [text, setText] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+
   useEffect(() => {
     const notes = JSON.parse(localStorage.getItem("notes")) || [];
-
     let found = notes.find((n) => n.id === id);
-
     if (!found) {
-      // If note with this ID doesn't exist, create one immediately
       found = {
         id,
         content: "",
@@ -25,44 +27,116 @@ const NotePage = () => {
       localStorage.setItem("notes", JSON.stringify(notes));
     }
 
-    setText(found.content); // Fill textarea
+    setText(found.content);
+    setPassword(found.password || "");
   }, [id]);
 
-  // Update note as user types
   const handleChange = (e) => {
-    const newContent = e.target.value;
-    setText(newContent);
+    const newText = e.target.value;
+    setText(newText);
 
     const notes = JSON.parse(localStorage.getItem("notes")) || [];
     const updated = notes.map((n) =>
       n.id === id
         ? {
             ...n,
-            content: newContent,
+            content: newText,
             lastModified: new Date().toISOString(),
+            password,
           }
         : n
     );
-
     localStorage.setItem("notes", JSON.stringify(updated));
   };
 
+  const handleSetCustomUrl = () => {
+    if (!customUrl.trim()) return;
+
+    const notes = JSON.parse(localStorage.getItem("notes")) || [];
+    const note = notes.find((n) => n.id === id);
+
+    if (!note) return;
+
+    const updatedNote = { ...note, id: customUrl.trim() };
+    const updatedNotes = [updatedNote, ...notes.filter((n) => n.id !== id)];
+
+    localStorage.setItem("notes", JSON.stringify(updatedNotes));
+    router.push(`/note/${customUrl.trim()}`);
+  };
+
+  const handleSetPassword = () => {
+    const notes = JSON.parse(localStorage.getItem("notes")) || [];
+    const updated = notes.map((n) => (n.id === id ? { ...n, password } : n));
+    localStorage.setItem("notes", JSON.stringify(updated));
+    alert("Password Set");
+  };
+
   return (
-    <main className="p-4">
-      <div className="mb-4">
+    <main className="bg-white min-h-screen p-4 text-black">
+      <div className="flex justify-between items-center mb-4">
         <button
-          onClick={() => router.push("/")}
-          className="underline text-sm text-blue-600"
+          onClick={() => alert("Google login coming soon!")}
+          className="bg-blue-400 text-white px-3 py-1 rounded"
         >
-          ← Back to all notes
+          Login with Google
         </button>
+        <div className="space-x-2">
+          <button
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            className="text-blue-400 underline text-sm"
+          >
+            {" "}
+            Set Custom URL{" "}
+          </button>
+          <button
+            onClick={() => setShowPasswordInput(!showPasswordInput)}
+            className="text-blue-400 underline text-sm"
+          >
+            {" "}
+            Set Password{" "}
+          </button>
+        </div>
       </div>
 
+      {showUrlInput && (
+        <div className="mb-2">
+          <input
+            className="border p-2 w-full mb-2"
+            value={customUrl}
+            onChange={(e) => setCustomUrl(e.target.value)}
+            placeholder="Enter URL of your choice"
+          />
+          <button
+            onClick={handleSetCustomUrl}
+            className="bg-green-400 text-white px-4 py-1 rounded"
+          >
+            Save URL
+          </button>
+        </div>
+      )}
+
+      {showPasswordInput && (
+        <div className="mb-2">
+          <input
+            className="border p-2 w-full mb-2"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="Enter URL of your choice"
+          />
+          <button
+            onClick={handleSetPassword}
+            className="bg-green-400 text-white px-4 py-1 rounded"
+          >
+            Set Password
+          </button>
+        </div>
+      )}
+
       <textarea
-        className="w-full h-[80vh] p-4 border rounded text-sm"
+        className="w-full h-[75vh] border rounded p-4 mt-4"
         value={text}
         onChange={handleChange}
-        placeholder="Start typing your note..."
+        placeholder="Start writing your notes..."
       />
     </main>
   );
