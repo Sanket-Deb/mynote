@@ -41,7 +41,8 @@ const Home = () => {
         {notes.map((note) => (
           <li key={note.id}>
             <a className="text-blue-600 underline" href={`/note/${note.id}`}>
-              {note.id} - {note.content.slice(0, 20) || "Untitled"}
+              {note.id} -{" "}
+              {note.content ? `${note.content.slice(0, 20)}...` : "Untitled"}
             </a>
           </li>
         ))}
