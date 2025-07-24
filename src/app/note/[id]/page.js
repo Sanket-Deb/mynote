@@ -69,6 +69,8 @@ const NotePage = () => {
     const updated = notes.map((n) => (n.id === id ? { ...n, password } : n));
     localStorage.setItem("notes", JSON.stringify(updated));
     alert("Password Set");
+    setShowPasswordInput(false);
+    setPassword("");
   };
 
   return (
@@ -112,6 +114,12 @@ const NotePage = () => {
           >
             Save URL
           </button>
+          <button
+            onClick={() => setShowUrlInput(!showUrlInput)}
+            className="bg-red-400 text-white px-4 py-1 rounded ml-2"
+          >
+            Close
+          </button>
         </div>
       )}
 
@@ -128,6 +136,12 @@ const NotePage = () => {
             className="bg-green-400 text-white px-4 py-1 rounded"
           >
             Set Password
+          </button>
+          <button
+            onClick={() => setShowPasswordInput(!showPasswordInput)}
+            className="bg-red-400 text-white px-4 py-1 rounded ml-2"
+          >
+            Close
           </button>
         </div>
       )}
