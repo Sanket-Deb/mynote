@@ -23,13 +23,13 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 const db = getFirestore(app);
-// const analytics = getAnalytics(app);
+const analytics = getAnalytics(app);
 
-let analytics;
-isSupported().then((yes) => {
-  if (yes) {
-    analytics = getAnalytics(app);
-  }
-});
+// let analytics;
+// isSupported().then((yes) => {
+//   if (yes) {
+//     analytics = getAnalytics(app);
+//   }
+// });
 
 export { app, auth, provider, db, analytics };
