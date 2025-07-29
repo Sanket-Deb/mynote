@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { auth, db } from "@/lib/firebase";
+import { auth, db, provider } from "@/lib/firebase";
 import {
   doc,
   getDoc,
@@ -10,9 +10,8 @@ import {
   updateDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
-import { signInWithPopup } from "firebase/auth";
-import { provider } from "@/lib/firebase";
+import { onAuthStateChanged, signInWithPopup } from "firebase/auth";
+import { loginAndMigrateAnonNote } from "@/lib/migrateAnonNote";
 
 const NotePage = () => {
   const { id } = useParams();
@@ -25,76 +24,80 @@ const NotePage = () => {
   const [showPasswordInput, setShowPasswordInput] = useState(false);
   const [user, setUser] = useState(null);
   const [pathRef, setPathRef] = useState(null);
+  const [noteLoaded, setNoteLoaded] = useState(false);
 
-  // Check auth status
+  // Track user login status
   useEffect(() => {
-    const unsub = onAuthStateChanged(auth, (u) => {
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
     });
-    return () => unsub();
+    return () => unsubscribe();
   }, []);
 
-  // Load note from Firestore (anon or user path)
+  // Load note from Firestore (but don't create)
   useEffect(() => {
     if (!id) return;
 
-    const noteRef = user
+    const ref = user
       ? doc(db, "users", user.uid, "notes", id)
       : doc(db, "anon", id);
 
-    setPathRef(noteRef);
+    setPathRef(ref);
 
-    getDoc(noteRef).then((snap) => {
-      if (snap.exists()) {
-        const data = snap.data();
+    getDoc(ref).then((docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
         setText(data.content || "");
         setPassword(data.password || "");
-      } else {
-        // New note: create it
-        setDoc(noteRef, {
-          content: "",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-          password: "",
-        });
       }
+      setNoteLoaded(true);
     });
   }, [id, user]);
 
-  // Autosave on text change
-  const handleChange = (e) => {
+  // Create or update on first edit
+  const handleChange = async (e) => {
     const newText = e.target.value;
     setText(newText);
-    if (pathRef) {
-      updateDoc(pathRef, {
+
+    if (!pathRef) return;
+
+    const docSnap = await getDoc(pathRef);
+
+    if (!docSnap.exists()) {
+      await setDoc(pathRef, {
+        content: newText,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        password: "",
+      });
+    } else {
+      await updateDoc(pathRef, {
         content: newText,
         updatedAt: serverTimestamp(),
       });
     }
   };
 
-  // Handle custom URL rename
   const handleSetCustomUrl = async () => {
     if (!customUrl.trim() || !pathRef) return;
 
     const newId = customUrl.trim();
-    const newPathRef = user
+    const newRef = user
       ? doc(db, "users", user.uid, "notes", newId)
       : doc(db, "anon", newId);
 
-    const snap = await getDoc(pathRef);
-    if (!snap.exists()) return;
+    const docSnap = await getDoc(pathRef);
+    if (!docSnap.exists()) return;
 
-    await setDoc(newPathRef, {
-      ...snap.data(),
+    await setDoc(newRef, {
+      ...docSnap.data(),
       updatedAt: serverTimestamp(),
     });
 
-    await updateDoc(pathRef, { deleted: true }); // optional soft-delete flag
+    await updateDoc(pathRef, { deleted: true }); // optional
     router.push(`/note/${newId}`);
   };
 
-  // Handle password save
   const handleSetPassword = async () => {
     if (!pathRef) return;
 
@@ -104,13 +107,21 @@ const NotePage = () => {
     setPassword("");
   };
 
-  //handle login
-  const handleGoogleLogin = async () => {
+  const handleLogin = async () => {
     try {
-      await signInWithPopup(auth, provider);
+      const { user, migrated } = await loginAndMigrateAnonNote(id);
+      if (migrated) {
+        router.push(`/note/${id}`);
+      } else {
+        router.push("/home");
+      }
     } catch (err) {
-      console.err("Login failed:", err);
+      console.error("Login or migration failed:", err);
     }
+  };
+
+  const handleBackToDashboard = () => {
+    router.push("/home");
   };
 
   return (
@@ -118,25 +129,30 @@ const NotePage = () => {
       <div className="flex justify-between items-center mb-4">
         {!user ? (
           <button
-            onClick={handleGoogleLogin}
-            className="bg-blue-400 text-white px-3 py-1 rounded"
+            onClick={handleLogin}
+            className="bg-blue-500 text-white px-3 py-1 rounded"
           >
             Login with Google
           </button>
         ) : (
-          <div className="text-gray-500 text-sm">Logged in as {user.email}</div>
+          <button
+            onClick={handleBackToDashboard}
+            className="bg-gray-600 text-white px-3 py-1 rounded"
+          >
+            Back to Dashboard
+          </button>
         )}
 
         <div className="space-x-2">
           <button
-            onClick={() => setShowUrlInput(!showUrlInput)}
-            className="text-blue-400 underline text-sm"
+            onClick={() => setShowUrlInput((prev) => !prev)}
+            className="text-blue-500 underline text-sm"
           >
             Set Custom URL
           </button>
           <button
-            onClick={() => setShowPasswordInput(!showPasswordInput)}
-            className="text-blue-400 underline text-sm"
+            onClick={() => setShowPasswordInput((prev) => !prev)}
+            className="text-blue-500 underline text-sm"
           >
             Set Password
           </button>
@@ -149,11 +165,11 @@ const NotePage = () => {
             className="border p-2 w-full mb-2"
             value={customUrl}
             onChange={(e) => setCustomUrl(e.target.value)}
-            placeholder="Enter URL of your choice"
+            placeholder="Enter custom URL"
           />
           <button
             onClick={handleSetCustomUrl}
-            className="bg-green-400 text-white px-4 py-1 rounded"
+            className="bg-green-500 text-white px-4 py-1 rounded"
           >
             Save URL
           </button>
@@ -176,7 +192,7 @@ const NotePage = () => {
           />
           <button
             onClick={handleSetPassword}
-            className="bg-green-400 text-white px-4 py-1 rounded"
+            className="bg-green-500 text-white px-4 py-1 rounded"
           >
             Set Password
           </button>
@@ -189,12 +205,16 @@ const NotePage = () => {
         </div>
       )}
 
-      <textarea
-        className="w-full h-[75vh] border rounded p-4 mt-4"
-        value={text}
-        onChange={handleChange}
-        placeholder="Start writing your notes..."
-      />
+      {!noteLoaded ? (
+        <p>Loading...</p>
+      ) : (
+        <textarea
+          className="w-full h-[75vh] border rounded p-4 mt-4"
+          value={text}
+          onChange={handleChange}
+          placeholder="Start writing your notes..."
+        />
+      )}
     </main>
   );
 };

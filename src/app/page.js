@@ -1,16 +1,22 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
 import { auth, provider } from "@/lib/firebase";
-import { signInWithPopup } from "firebase/auth";
+import { signInWithPopup, signOut } from "firebase/auth";
+import { createAnonNote } from "@/lib/firestoreHelpers";
 
 const LandingPage = () => {
   const router = useRouter();
 
-  const handleAnonymous = () => {
+  useEffect(() => {
+    signOut(auth).catch((err) => console.error("Auto-logout failed:", err));
+  }, []);
+
+  const handleAnonymous = async () => {
     const id = nanoid(12);
+    await createAnonNote(id);
     router.push(`/note/${id}`);
   };
 

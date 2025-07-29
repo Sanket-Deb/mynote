@@ -23,7 +23,7 @@ export const createUserNote = async (uid) => {
 
 // For non-logged-in user
 export const createAnonNote = async (noteId) => {
-  const noteRef = doc(db, "anon", uid, noteId);
+  const noteRef = doc(db, "anon", noteId);
   await setDoc(noteRef, {
     content: "",
     createdAt: serverTimestamp(),

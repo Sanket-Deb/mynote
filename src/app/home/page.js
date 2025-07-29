@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import { collection, onSnapshot, doc } from "firebase/firestore";
+import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createUserNote } from "@/lib/firestoreHelpers";
 
@@ -16,31 +16,36 @@ const HomePage = () => {
 
   // Redirect if not logged in
   useEffect(() => {
-    const unsubscribe = auth.onAuthStateChanged((u) => {
+    const unsub = auth.onAuthStateChanged((u) => {
       if (!u) {
         router.push("/");
       } else {
         setUser(u);
       }
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, [router]);
 
   // Load notes in real-time
   useEffect(() => {
     if (!user) return;
 
-    const userNotesRef = collection(db, "users", user.uid, "notes");
-    const unsubscribe = onSnapshot(userNotesRef, (snapshot) => {
-      const notesList = snapshot.docs.map((doc) => ({
+    const ref = collection(db, "users", user.uid, "notes");
+    const unsub = onSnapshot(ref, (snap) => {
+      const notesList = snap.docs.map((doc) => ({
         id: doc.id,
         ...doc.data(),
       }));
-      setNotes(notesList);
+
+      const filteredNotes = notesList.filter(
+        (note) => note.content?.trim() && !note.deleted
+      );
+
+      setNotes(filteredNotes);
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    return () => unsub();
   }, [user]);
 
   // New note handler via helper
