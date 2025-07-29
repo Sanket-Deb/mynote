@@ -11,6 +11,8 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
+import { signInWithPopup } from "firebase/auth";
+import { provider } from "@/lib/firebase";
 
 const NotePage = () => {
   const { id } = useParams();
@@ -26,10 +28,10 @@ const NotePage = () => {
 
   // Check auth status
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
+    const unsub = onAuthStateChanged(auth, (u) => {
       setUser(u || null);
     });
-    return () => unsubscribe();
+    return () => unsub();
   }, []);
 
   // Load note from Firestore (anon or user path)
@@ -42,9 +44,9 @@ const NotePage = () => {
 
     setPathRef(noteRef);
 
-    getDoc(noteRef).then((docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+    getDoc(noteRef).then((snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
         setText(data.content || "");
         setPassword(data.password || "");
       } else {
@@ -80,11 +82,11 @@ const NotePage = () => {
       ? doc(db, "users", user.uid, "notes", newId)
       : doc(db, "anon", newId);
 
-    const docSnap = await getDoc(pathRef);
-    if (!docSnap.exists()) return;
+    const snap = await getDoc(pathRef);
+    if (!snap.exists()) return;
 
     await setDoc(newPathRef, {
-      ...docSnap.data(),
+      ...snap.data(),
       updatedAt: serverTimestamp(),
     });
 
@@ -102,12 +104,21 @@ const NotePage = () => {
     setPassword("");
   };
 
+  //handle login
+  const handleGoogleLogin = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+    } catch (err) {
+      console.err("Login failed:", err);
+    }
+  };
+
   return (
     <main className="bg-white min-h-screen p-4 text-black">
       <div className="flex justify-between items-center mb-4">
         {!user ? (
           <button
-            onClick={() => alert("Google login coming soon!")}
+            onClick={handleGoogleLogin}
             className="bg-blue-400 text-white px-3 py-1 rounded"
           >
             Login with Google
