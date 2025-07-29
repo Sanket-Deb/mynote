@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { nanoid } from "nanoid";
+import { auth, provider } from "@/lib/firebase";
+import { signInWithPopup } from "firebase/auth";
 
 const LandingPage = () => {
   const router = useRouter();
@@ -12,8 +14,13 @@ const LandingPage = () => {
     router.push(`/note/${id}`);
   };
 
-  const handleLogin = () => {
-    alert("Login with Google coming soon!");
+  const handleLogin = async () => {
+    try {
+      await signInWithPopup(auth, provider);
+      router.push("/home");
+    } catch (err) {
+      console.error("Login failed:", err);
+    }
   };
 
   return (

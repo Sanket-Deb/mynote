@@ -2,72 +2,101 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import { auth, db } from "@/lib/firebase";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
 
 const NotePage = () => {
-  const { id } = useParams(); // Get note ID from URL
+  const { id } = useParams();
   const router = useRouter();
 
   const [text, setText] = useState("");
   const [customUrl, setCustomUrl] = useState("");
   const [password, setPassword] = useState("");
-
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [user, setUser] = useState(null);
+  const [pathRef, setPathRef] = useState(null);
 
+  // Check auth status
   useEffect(() => {
-    const notes = JSON.parse(localStorage.getItem("notes")) || [];
-    let found = notes.find((n) => n.id === id);
-    if (!found) {
-      found = {
-        id,
-        content: "",
-        lastModified: new Date().toISOString(),
-      };
-      notes.unshift(found);
-      localStorage.setItem("notes", JSON.stringify(notes));
-    }
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u || null);
+    });
+    return () => unsubscribe();
+  }, []);
 
-    setText(found.content);
-    setPassword(found.password || "");
-  }, [id]);
+  // Load note from Firestore (anon or user path)
+  useEffect(() => {
+    if (!id) return;
 
+    const noteRef = user
+      ? doc(db, "users", user.uid, "notes", id)
+      : doc(db, "anon", id);
+
+    setPathRef(noteRef);
+
+    getDoc(noteRef).then((docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setText(data.content || "");
+        setPassword(data.password || "");
+      } else {
+        // New note: create it
+        setDoc(noteRef, {
+          content: "",
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+          password: "",
+        });
+      }
+    });
+  }, [id, user]);
+
+  // Autosave on text change
   const handleChange = (e) => {
     const newText = e.target.value;
     setText(newText);
-
-    const notes = JSON.parse(localStorage.getItem("notes")) || [];
-    const updated = notes.map((n) =>
-      n.id === id
-        ? {
-            ...n,
-            content: newText,
-            lastModified: new Date().toISOString(),
-            password,
-          }
-        : n
-    );
-    localStorage.setItem("notes", JSON.stringify(updated));
+    if (pathRef) {
+      updateDoc(pathRef, {
+        content: newText,
+        updatedAt: serverTimestamp(),
+      });
+    }
   };
 
-  const handleSetCustomUrl = () => {
-    if (!customUrl.trim()) return;
+  // Handle custom URL rename
+  const handleSetCustomUrl = async () => {
+    if (!customUrl.trim() || !pathRef) return;
 
-    const notes = JSON.parse(localStorage.getItem("notes")) || [];
-    const note = notes.find((n) => n.id === id);
+    const newId = customUrl.trim();
+    const newPathRef = user
+      ? doc(db, "users", user.uid, "notes", newId)
+      : doc(db, "anon", newId);
 
-    if (!note) return;
+    const docSnap = await getDoc(pathRef);
+    if (!docSnap.exists()) return;
 
-    const updatedNote = { ...note, id: customUrl.trim() };
-    const updatedNotes = [updatedNote, ...notes.filter((n) => n.id !== id)];
+    await setDoc(newPathRef, {
+      ...docSnap.data(),
+      updatedAt: serverTimestamp(),
+    });
 
-    localStorage.setItem("notes", JSON.stringify(updatedNotes));
-    router.push(`/note/${customUrl.trim()}`);
+    await updateDoc(pathRef, { deleted: true }); // optional soft-delete flag
+    router.push(`/note/${newId}`);
   };
 
-  const handleSetPassword = () => {
-    const notes = JSON.parse(localStorage.getItem("notes")) || [];
-    const updated = notes.map((n) => (n.id === id ? { ...n, password } : n));
-    localStorage.setItem("notes", JSON.stringify(updated));
+  // Handle password save
+  const handleSetPassword = async () => {
+    if (!pathRef) return;
+
+    await updateDoc(pathRef, { password });
     alert("Password Set");
     setShowPasswordInput(false);
     setPassword("");
@@ -76,26 +105,29 @@ const NotePage = () => {
   return (
     <main className="bg-white min-h-screen p-4 text-black">
       <div className="flex justify-between items-center mb-4">
-        <button
-          onClick={() => alert("Google login coming soon!")}
-          className="bg-blue-400 text-white px-3 py-1 rounded"
-        >
-          Login with Google
-        </button>
+        {!user ? (
+          <button
+            onClick={() => alert("Google login coming soon!")}
+            className="bg-blue-400 text-white px-3 py-1 rounded"
+          >
+            Login with Google
+          </button>
+        ) : (
+          <div className="text-gray-500 text-sm">Logged in as {user.email}</div>
+        )}
+
         <div className="space-x-2">
           <button
             onClick={() => setShowUrlInput(!showUrlInput)}
             className="text-blue-400 underline text-sm"
           >
-            {" "}
-            Set Custom URL{" "}
+            Set Custom URL
           </button>
           <button
             onClick={() => setShowPasswordInput(!showPasswordInput)}
             className="text-blue-400 underline text-sm"
           >
-            {" "}
-            Set Password{" "}
+            Set Password
           </button>
         </div>
       </div>
@@ -115,7 +147,7 @@ const NotePage = () => {
             Save URL
           </button>
           <button
-            onClick={() => setShowUrlInput(!showUrlInput)}
+            onClick={() => setShowUrlInput(false)}
             className="bg-red-400 text-white px-4 py-1 rounded ml-2"
           >
             Close
@@ -129,7 +161,7 @@ const NotePage = () => {
             className="border p-2 w-full mb-2"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            placeholder="Enter URL of your choice"
+            placeholder="Enter a password"
           />
           <button
             onClick={handleSetPassword}
@@ -138,7 +170,7 @@ const NotePage = () => {
             Set Password
           </button>
           <button
-            onClick={() => setShowPasswordInput(!showPasswordInput)}
+            onClick={() => setShowPasswordInput(false)}
             className="bg-red-400 text-white px-4 py-1 rounded ml-2"
           >
             Close
