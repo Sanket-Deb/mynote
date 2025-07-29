@@ -6,10 +6,11 @@ import {
   deleteDoc,
   updateDoc,
   getDoc,
+  collection,
   serverTimestamp,
 } from "firebase/firestore";
-import { nanoid } from "nanoid";
 
+// For logged-in users
 export const createUserNote = async (uid) => {
   const docRef = await addDoc(collection(db, "users", uid, "notes"), {
     content: "",
@@ -20,31 +21,33 @@ export const createUserNote = async (uid) => {
   return docRef.id;
 };
 
-export const createAnonNote = async (uid) => {
-  const noteRef = await doc(db, "anon", uid, noteId);
+// For non-logged-in user
+export const createAnonNote = async (noteId) => {
+  const noteRef = doc(db, "anon", uid, noteId);
   await setDoc(noteRef, {
     content: "",
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     password: "",
   });
+  return noteId;
 };
 
 // Update content (used in autosave)
-export const updateNoteContent = async (pathRef, content) => {
-  await updateDoc(pathRef, {
+export const updateNoteContent = async (ref, content) => {
+  await updateDoc(ref, {
     content,
     updatedAt: serverTimestamp(),
   });
 };
 
 // Delete any note (used by dashboard delete)
-export const deleteNote = async (pathRef) => {
-  await deleteDoc(pathRef);
+export const deleteNote = async (ref) => {
+  await deleteDoc(ref);
 };
 
 // Get full note document
-export const getNote = async (pathRef) => {
-  const snap = await getDoc(pathRef);
+export const getNote = async (ref) => {
+  const snap = await getDoc(ref);
   return snap.exists() ? snap.data() : null;
 };
