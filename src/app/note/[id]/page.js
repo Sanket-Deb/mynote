@@ -12,6 +12,7 @@ import {
 } from "firebase/firestore";
 import { onAuthStateChanged, signInWithPopup } from "firebase/auth";
 import { loginAndMigrateAnonNote } from "@/lib/migrateAnonNote";
+import PasswordGate from "@/components/PasswordGate";
 
 const NotePage = () => {
   const { id } = useParams();
@@ -25,6 +26,7 @@ const NotePage = () => {
   const [user, setUser] = useState(null);
   const [pathRef, setPathRef] = useState(null);
   const [noteLoaded, setNoteLoaded] = useState(false);
+  const [isUnlocked, setIsUnlocked] = useState(false);
 
   // Track user login status
   useEffect(() => {
@@ -207,6 +209,11 @@ const NotePage = () => {
 
       {!noteLoaded ? (
         <p>Loading...</p>
+      ) : password && !isUnlocked ? (
+        <PasswordGate
+          onUnlock={() => setIsUnlocked(true)}
+          correctPassword={password}
+        />
       ) : (
         <textarea
           className="w-full h-[75vh] border rounded p-4 mt-4"

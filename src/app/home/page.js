@@ -7,6 +7,7 @@ import { signOut } from "firebase/auth";
 import { collection, onSnapshot } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createUserNote } from "@/lib/firestoreHelpers";
+import { doc, deleteDoc } from "firebase/firestore";
 
 const HomePage = () => {
   const [user, setUser] = useState(null);
@@ -104,18 +105,48 @@ const HomePage = () => {
               {notes.map((note) => (
                 <div
                   key={note.id}
-                  onClick={() => router.push(`/note/${note.id}`)}
-                  className="border rounded p-4 cursor-pointer hover:shadow"
+                  className="border rounded p-4 hover:shadow flex flex-col justify-between"
                 >
-                  <p className="text-gray-700">
-                    {note.content?.substring(0, 100) || "Empty note..."}
-                  </p>
-                  <p className="text-xs text-gray-400 mt-2">
-                    Last updated:{" "}
-                    {note.updatedAt?.toDate
-                      ? note.updatedAt.toDate().toLocaleString()
-                      : "—"}
-                  </p>
+                  <div
+                    onClick={() => router.push(`/note/${note.id}`)}
+                    className="cursor-pointer"
+                  >
+                    <p className="text-gray-700 mb-2">
+                      {note.content?.substring(0, 100) || "Empty note..."}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Created on:{" "}
+                      {note.createdAt?.toDate
+                        ? note.createdAt.toDate().toLocaleString()
+                        : "—"}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Last updated:{" "}
+                      {note.updatedAt?.toDate
+                        ? note.updatedAt.toDate().toLocaleString()
+                        : "—"}
+                    </p>
+                  </div>
+
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation(); // prevent routing
+                      const confirmed = confirm("Delete this note?");
+                      if (confirmed) {
+                        const ref = doc(
+                          db,
+                          "users",
+                          user.uid,
+                          "notes",
+                          note.id
+                        );
+                        await deleteDoc(ref);
+                      }
+                    }}
+                    className="mt-0.5 bg-red-500 text-white px-3 py-1 rounded text-sm self-end"
+                  >
+                    Delete
+                  </button>
                 </div>
               ))}
             </div>
