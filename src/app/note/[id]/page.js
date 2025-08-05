@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { auth, db, provider } from "@/lib/firebase";
+import { auth, db } from "@/lib/firebase";
 import {
   doc,
   getDoc,
   setDoc,
   updateDoc,
+  deleteDoc,
   serverTimestamp,
 } from "firebase/firestore";
-import { onAuthStateChanged, signInWithPopup } from "firebase/auth";
+import { onAuthStateChanged } from "firebase/auth";
 import { loginAndMigrateAnonNote } from "@/lib/migrateAnonNote";
 import PasswordGate from "@/components/PasswordGate";
 
@@ -19,14 +20,20 @@ const NotePage = () => {
   const router = useRouter();
 
   const [text, setText] = useState("");
-  const [customUrl, setCustomUrl] = useState("");
   const [password, setPassword] = useState("");
-  const [showUrlInput, setShowUrlInput] = useState(false);
-  const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [customUrl, setCustomUrl] = useState("");
+
   const [user, setUser] = useState(null);
-  const [pathRef, setPathRef] = useState(null);
   const [noteLoaded, setNoteLoaded] = useState(false);
   const [isUnlocked, setIsUnlocked] = useState(false);
+
+  const [showUrlInput, setShowUrlInput] = useState(false);
+  const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [showPasswordText, setShowPasswordText] = useState(false);
+
+  const [pathRef, setPathRef] = useState(null);
+  const [isAnonNote, setIsAnonNote] = useState(true);
 
   // Track user login status
   useEffect(() => {
@@ -40,20 +47,37 @@ const NotePage = () => {
   useEffect(() => {
     if (!id) return;
 
-    const ref = user
-      ? doc(db, "users", user.uid, "notes", id)
-      : doc(db, "anon", id);
+    const loadNote = async () => {
+      const anonRef = doc(db, "anon", id);
+      const anonSnap = await getDoc(anonRef);
 
-    setPathRef(ref);
-
-    getDoc(ref).then((docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
+      if (anonSnap.exists()) {
+        const data = anonSnap.data();
         setText(data.content || "");
         setPassword(data.password || "");
+        setPathRef(anonRef);
+        setIsAnonNote(true);
+        setNoteLoaded(true);
+        return;
       }
-      setNoteLoaded(true);
-    });
+
+      if (user) {
+        const userRef = doc(db, "users", user.uid, "notes", id);
+        const userSnap = await getDoc(userRef);
+
+        if (userSnap.exists()) {
+          const data = userSnap.data();
+          setText(data.content || "");
+          setPassword(data.password || "");
+          setPathRef(userRef);
+          setIsAnonNote(false);
+        }
+
+        setNoteLoaded(true);
+      }
+    };
+
+    loadNote();
   }, [id, user]);
 
   // Create or update on first edit
@@ -96,17 +120,17 @@ const NotePage = () => {
       updatedAt: serverTimestamp(),
     });
 
-    await updateDoc(pathRef, { deleted: true }); // optional
+    await deleteDoc(pathRef);
     router.push(`/note/${newId}`);
   };
 
   const handleSetPassword = async () => {
-    if (!pathRef) return;
+    if (!pathRef || !passwordInput.trim()) return;
 
-    await updateDoc(pathRef, { password });
-    alert("Password Set");
+    await updateDoc(pathRef, { password: passwordInput });
+    setPassword(passwordInput.trim());
     setShowPasswordInput(false);
-    setPassword("");
+    setPasswordInput("");
   };
 
   const handleLogin = async () => {
@@ -145,20 +169,22 @@ const NotePage = () => {
           </button>
         )}
 
-        <div className="space-x-2">
-          <button
-            onClick={() => setShowUrlInput((prev) => !prev)}
-            className="text-blue-500 underline text-sm"
-          >
-            Set Custom URL
-          </button>
-          <button
-            onClick={() => setShowPasswordInput((prev) => !prev)}
-            className="text-blue-500 underline text-sm"
-          >
-            Set Password
-          </button>
-        </div>
+        {(!password || isUnlocked) && (
+          <div className="space-x-2">
+            <button
+              onClick={() => setShowUrlInput((prev) => !prev)}
+              className="text-blue-500 underline text-sm"
+            >
+              Set Custom URL
+            </button>
+            <button
+              onClick={() => setShowPasswordInput((prev) => !prev)}
+              className="text-blue-500 underline text-sm"
+            >
+              Set Password
+            </button>
+          </div>
+        )}
       </div>
 
       {showUrlInput && (
@@ -188,15 +214,15 @@ const NotePage = () => {
         <div className="mb-2">
           <input
             className="border p-2 w-full mb-2"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
+            value={passwordInput}
+            onChange={(e) => setPasswordInput(e.target.value)}
             placeholder="Enter a password"
           />
           <button
             onClick={handleSetPassword}
             className="bg-green-500 text-white px-4 py-1 rounded"
           >
-            Set Password
+            Save Password
           </button>
           <button
             onClick={() => setShowPasswordInput(false)}
@@ -209,7 +235,7 @@ const NotePage = () => {
 
       {!noteLoaded ? (
         <p>Loading...</p>
-      ) : password && !isUnlocked ? (
+      ) : password && !isUnlocked && !showPasswordInput ? (
         <PasswordGate
           onUnlock={() => setIsUnlocked(true)}
           correctPassword={password}

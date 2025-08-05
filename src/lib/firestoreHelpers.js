@@ -33,6 +33,7 @@ export const createAnonNote = async (noteId) => {
   return noteId;
 };
 
+//---------unsed
 // Update content (used in autosave)
 export const updateNoteContent = async (ref, content) => {
   await updateDoc(ref, {
