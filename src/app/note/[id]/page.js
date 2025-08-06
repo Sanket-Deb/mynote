@@ -30,10 +30,10 @@ const NotePage = () => {
 
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [showPasswordInput, setShowPasswordInput] = useState(false);
-  const [showPasswordText, setShowPasswordText] = useState(false);
+  // const [showPasswordText, setShowPasswordText] = useState(false);
 
   const [pathRef, setPathRef] = useState(null);
-  const [isAnonNote, setIsAnonNote] = useState(true);
+  const [ownerUID, setownerUID] = useState(null);
 
   // Track user login status
   useEffect(() => {
@@ -47,38 +47,19 @@ const NotePage = () => {
   useEffect(() => {
     if (!id) return;
 
-    const loadNote = async () => {
-      const anonRef = doc(db, "anon", id);
-      const anonSnap = await getDoc(anonRef);
+    const ref = doc(db, "notes", id);
+    setPathRef(ref);
 
-      if (anonSnap.exists()) {
-        const data = anonSnap.data();
+    getDoc(ref).then((docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
         setText(data.content || "");
         setPassword(data.password || "");
-        setPathRef(anonRef);
-        setIsAnonNote(true);
-        setNoteLoaded(true);
-        return;
+        setownerUID(data.ownerUID || null);
       }
-
-      if (user) {
-        const userRef = doc(db, "users", user.uid, "notes", id);
-        const userSnap = await getDoc(userRef);
-
-        if (userSnap.exists()) {
-          const data = userSnap.data();
-          setText(data.content || "");
-          setPassword(data.password || "");
-          setPathRef(userRef);
-          setIsAnonNote(false);
-        }
-
-        setNoteLoaded(true);
-      }
-    };
-
-    loadNote();
-  }, [id, user]);
+      setNoteLoaded(true);
+    });
+  }, [id]);
 
   // Create or update on first edit
   const handleChange = async (e) => {
@@ -87,14 +68,15 @@ const NotePage = () => {
 
     if (!pathRef) return;
 
-    const docSnap = await getDoc(pathRef);
+    const snap = await getDoc(pathRef);
 
-    if (!docSnap.exists()) {
+    if (!snap.exists()) {
       await setDoc(pathRef, {
         content: newText,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         password: "",
+        ownerUID: user?.uid || null,
       });
     } else {
       await updateDoc(pathRef, {
@@ -104,19 +86,17 @@ const NotePage = () => {
     }
   };
 
+  //set custom url
   const handleSetCustomUrl = async () => {
     if (!customUrl.trim() || !pathRef) return;
-
     const newId = customUrl.trim();
-    const newRef = user
-      ? doc(db, "users", user.uid, "notes", newId)
-      : doc(db, "anon", newId);
 
-    const docSnap = await getDoc(pathRef);
-    if (!docSnap.exists()) return;
+    const oldSnap = await getDoc(pathRef);
+    if (!oldSnap.exists()) return;
 
+    const newRef = doc(db, "notes", newId);
     await setDoc(newRef, {
-      ...docSnap.data(),
+      ...oldSnap.data(),
       updatedAt: serverTimestamp(),
     });
 
@@ -124,15 +104,17 @@ const NotePage = () => {
     router.push(`/note/${newId}`);
   };
 
+  // set password
   const handleSetPassword = async () => {
     if (!pathRef || !passwordInput.trim()) return;
 
-    await updateDoc(pathRef, { password: passwordInput });
+    await updateDoc(pathRef, { password: passwordInput.trim() });
     setPassword(passwordInput.trim());
     setShowPasswordInput(false);
     setPasswordInput("");
   };
 
+  //handle login + migration
   const handleLogin = async () => {
     try {
       const { user, migrated } = await loginAndMigrateAnonNote(id);
@@ -149,6 +131,8 @@ const NotePage = () => {
   const handleBackToDashboard = () => {
     router.push("/home");
   };
+
+  const isOwner = !ownerUID || user?.uid === ownerUID;
 
   return (
     <main className="bg-white min-h-screen p-4 text-black">
@@ -169,7 +153,7 @@ const NotePage = () => {
           </button>
         )}
 
-        {(!password || isUnlocked) && (
+        {(!password || isUnlocked) && isOwner && (
           <div className="space-x-2">
             <button
               onClick={() => setShowUrlInput((prev) => !prev)}
