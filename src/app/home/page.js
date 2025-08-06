@@ -4,10 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { signOut } from "firebase/auth";
-import { collection, onSnapshot } from "firebase/firestore";
+import { collection, onSnapshot, doc, deleteDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { createUserNote } from "@/lib/firestoreHelpers";
-import { doc, deleteDoc } from "firebase/firestore";
 
 const HomePage = () => {
   const [user, setUser] = useState(null);
@@ -31,7 +30,8 @@ const HomePage = () => {
   useEffect(() => {
     if (!user) return;
 
-    const ref = collection(db, "users", user.uid, "notes");
+    const ref = collection(db, "notes");
+
     const unsub = onSnapshot(ref, (snap) => {
       const notesList = snap.docs.map((doc) => ({
         id: doc.id,
@@ -39,7 +39,8 @@ const HomePage = () => {
       }));
 
       const filteredNotes = notesList.filter(
-        (note) => note.content?.trim() && !note.deleted
+        (note) =>
+          note.ownerUID === user.uid && note.content?.trim() && !note.deleted
       );
 
       setNotes(filteredNotes);
@@ -133,13 +134,7 @@ const HomePage = () => {
                       e.stopPropagation(); // prevent routing
                       const confirmed = confirm("Delete this note?");
                       if (confirmed) {
-                        const ref = doc(
-                          db,
-                          "users",
-                          user.uid,
-                          "notes",
-                          note.id
-                        );
+                        const ref = doc(db, "notes", note.id);
                         await deleteDoc(ref);
                       }
                     }}
