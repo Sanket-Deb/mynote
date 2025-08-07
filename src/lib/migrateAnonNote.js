@@ -7,7 +7,7 @@ export const loginAndMigrateAnonNote = async (noteId) => {
   const user = result.user;
 
   const noteRef = doc(db, "notes", noteId);
-  const noteSnap = await getDoc(anonRef);
+  const noteSnap = await getDoc(noteRef);
 
   if (noteSnap.exists()) {
     const data = noteSnap.data();

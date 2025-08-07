@@ -30,7 +30,7 @@ const PasswordGate = ({ correctPassword, onUnlock }) => {
           className="abslute right-3 top-2.5 cursor-pointer text-sm text-gray-500 select-none"
           onClick={() => setShow((s) => !s)}
         >
-          {show ? "🔒" : "🔒"}
+          {show ? "🔒" : "🔓"}
         </span>
       </div>
 

@@ -14,6 +14,7 @@ import {
 import { onAuthStateChanged } from "firebase/auth";
 import { loginAndMigrateAnonNote } from "@/lib/migrateAnonNote";
 import PasswordGate from "@/components/PasswordGate";
+import { createNewNote } from "@/lib/firestoreHelpers";
 
 const NotePage = () => {
   const { id } = useParams();
@@ -132,6 +133,15 @@ const NotePage = () => {
     router.push("/home");
   };
 
+  const handleNewNote = async () => {
+    try {
+      const noteId = await createNewNote(user);
+      router.push(`/note/${noteId}`);
+    } catch (err) {
+      console.error("Error creating note:", err);
+    }
+  };
+
   const isOwner = !ownerUID || user?.uid === ownerUID;
 
   return (
@@ -152,6 +162,15 @@ const NotePage = () => {
             Back to Dashboard
           </button>
         )}
+
+        <div className="space-x-2">
+          <button
+            onClick={handleNewNote}
+            className="bg-blue-500 text-white px-3 py-1 rounded"
+          >
+            + New Note
+          </button>
+        </div>
 
         {(!password || isUnlocked) && isOwner && (
           <div className="space-x-2">

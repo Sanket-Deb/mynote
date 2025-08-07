@@ -1,18 +1,10 @@
 import { db } from "./firebase";
-import {
-  addDoc,
-  doc,
-  setDoc,
-  deleteDoc,
-  updateDoc,
-  getDoc,
-  collection,
-  serverTimestamp,
-} from "firebase/firestore";
+import { doc, setDoc, collection, serverTimestamp } from "firebase/firestore";
+import { nanoid } from "nanoid";
 
 // For logged-in users
 export const createUserNote = async (uid) => {
-  const docRef = await addDoc(collection(db, "notes"));
+  const docRef = doc(collection(db, "notes"));
   await setDoc(docRef, {
     content: "",
     createdAt: serverTimestamp(),
@@ -34,6 +26,16 @@ export const createAnonNote = async (noteId) => {
     ownerUID: null,
   });
   return noteId;
+};
+
+export const createNewNote = async (user) => {
+  if (user) {
+    return await createUserNote(user.uid);
+  } else {
+    const noteId = nanoid();
+    await createAnonNote(noteId);
+    return noteId;
+  }
 };
 
 //---------unsed
