@@ -10,6 +10,7 @@ import {
   updateDoc,
   deleteDoc,
   serverTimestamp,
+  onSnapshot,
 } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 import { loginAndMigrateAnonNote } from "@/lib/migrateAnonNote";
@@ -40,7 +41,7 @@ const NotePage = () => {
   // const [showPasswordText, setShowPasswordText] = useState(false);
 
   const [pathRef, setPathRef] = useState(null);
-  const [ownerUID, setownerUID] = useState(null);
+  const [ownerUID, setOwnerUID] = useState(null);
 
   // Track user login status
   useEffect(() => {
@@ -57,21 +58,36 @@ const NotePage = () => {
     const ref = doc(db, "notes", id);
     setPathRef(ref);
 
-    getDoc(ref).then((docSnap) => {
+    const unsubscribe = onSnapshot(ref, (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
         setText(data.content || "");
         setPassword(data.password || "");
-        setownerUID(data.ownerUID || null);
+        setOwnerUID(data.ownerUID || null);
+      } else {
+        setText("");
+        setPassword("");
+        setOwnerUID(null);
       }
       setNoteLoaded(true);
     });
+
+    return () => unsubscribe();
   }, [id]);
 
   // Create or update on first edit
   const handleChange = async (e) => {
     const newText = e.target.value;
     setText(newText);
+
+    const trimmedText = newText.trim();
+
+    if (trimmedText === "") {
+      if (id) {
+        await deleteDoc(doc(db, "notes", id));
+      }
+      return;
+    }
 
     if (!pathRef) return;
 
@@ -96,12 +112,16 @@ const NotePage = () => {
   //set custom url
   const handleSetCustomUrl = async () => {
     if (!customUrl.trim() || !pathRef) return;
-    const newId = customUrl.trim();
+
+    const newId = customUrl.replace(/\s+/g, "").trim();
+
+    if (!newId) return;
 
     const oldSnap = await getDoc(pathRef);
     if (!oldSnap.exists()) return;
 
     const newRef = doc(db, "notes", newId);
+
     await setDoc(newRef, {
       ...oldSnap.data(),
       updatedAt: serverTimestamp(),
@@ -117,8 +137,9 @@ const NotePage = () => {
 
     await updateDoc(pathRef, { password: passwordInput.trim() });
     setPassword(passwordInput.trim());
-    //setShowPasswordInput(false);
+    setShowPasswordInput(false);
     setPasswordInput("");
+    setIsUnlocked(false);
   };
 
   //handle login + migration
@@ -275,7 +296,7 @@ const NotePage = () => {
           }}
           onOptOut={() => {
             setIsUnlocked(false);
-            setShowPasswordModal(flase);
+            setShowPasswordModal(false);
           }}
           isOwner={isOwner}
         />
