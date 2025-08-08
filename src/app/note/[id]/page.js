@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { auth, db } from "@/lib/firebase";
 import {
@@ -43,6 +43,10 @@ const NotePage = () => {
   const [pathRef, setPathRef] = useState(null);
   const [ownerUID, setOwnerUID] = useState(null);
 
+  const saveTimeoutRef = useRef(null);
+  const deleteTimeoutRef = useRef(null);
+  const isSavingRef = useRef(false);
+
   // Track user login status
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
@@ -50,6 +54,10 @@ const NotePage = () => {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    setIsUnlocked(false);
+  }, [id]);
 
   // Load note from Firestore (but don't create)
   useEffect(() => {
@@ -80,33 +88,58 @@ const NotePage = () => {
     const newText = e.target.value;
     setText(newText);
 
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    if (deleteTimeoutRef.current) {
+      clearTimeout(deleteTimeoutRef.current);
+      deleteTimeoutRef.current = null;
+    }
+
     const trimmedText = newText.trim();
 
     if (trimmedText === "") {
-      if (id) {
-        await deleteDoc(doc(db, "notes", id));
-      }
+      deleteTimeoutRef.current = setTimeout(async () => {
+        try {
+          if (id && pathRef) {
+            await deleteDoc(pathRef);
+            setText("");
+            setNoteLoaded(false);
+            setOwnerUID(null);
+          }
+        } catch (error) {
+          console.error("Error deleting note:", error);
+        }
+        deleteTimeoutRef.current = null;
+      }, 8000);
       return;
     }
 
-    if (!pathRef) return;
+    saveTimeoutRef.current = setTimeout(async () => {
+      if (isSavingRef.current) return;
+      isSavingRef.current = true;
+      try {
+        if (!pathRef) return;
 
-    const snap = await getDoc(pathRef);
+        const snap = await getDoc(pathRef);
 
-    if (!snap.exists()) {
-      await setDoc(pathRef, {
-        content: newText,
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
-        password: "",
-        ownerUID: user?.uid || null,
-      });
-    } else {
-      await updateDoc(pathRef, {
-        content: newText,
-        updatedAt: serverTimestamp(),
-      });
-    }
+        if (!snap.exists()) {
+          await setDoc(pathRef, {
+            content: newText,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            password: "",
+            ownerUID: user?.uid || null,
+          });
+        } else {
+          await updateDoc(pathRef, {
+            content: newText,
+            updatedAt: serverTimestamp(),
+          });
+        }
+      } catch (error) {
+        console.error("Error saving note content:", error);
+      }
+      isSavingRef.current = false;
+    }, 500);
   };
 
   //set custom url
@@ -117,18 +150,30 @@ const NotePage = () => {
 
     if (!newId) return;
 
-    const oldSnap = await getDoc(pathRef);
-    if (!oldSnap.exists()) return;
+    try {
+      const oldSnap = await getDoc(pathRef);
+      if (!oldSnap.exists()) {
+        console.warn("Current note does not exists");
+        return;
+      }
+      const newRef = doc(db, "notes", newId);
 
-    const newRef = doc(db, "notes", newId);
+      const newSnap = await getDoc(newRef);
+      if (newSnap.exists()) {
+        alert("This custom URL is already taken. Please choose another one.");
+        return;
+      }
 
-    await setDoc(newRef, {
-      ...oldSnap.data(),
-      updatedAt: serverTimestamp(),
-    });
+      await setDoc(newRef, {
+        ...oldSnap.data(),
+        updatedAt: serverTimestamp(),
+      });
 
-    await deleteDoc(pathRef);
-    router.push(`/note/${newId}`);
+      await deleteDoc(pathRef);
+      router.push(`/note/${newId}`);
+    } catch (error) {
+      console.error("Error setting customr URL:", error);
+    }
   };
 
   // set password
