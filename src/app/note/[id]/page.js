@@ -15,6 +15,11 @@ import { onAuthStateChanged } from "firebase/auth";
 import { loginAndMigrateAnonNote } from "@/lib/migrateAnonNote";
 import PasswordGate from "@/components/PasswordGate";
 import { createNewNote } from "@/lib/firestoreHelpers";
+import dynamic from "next/dynamic";
+const ManagePasswordModal = dynamic(
+  () => import("@/components/ManagePasswordModal"),
+  { ssr: false }
+);
 
 const NotePage = () => {
   const { id } = useParams();
@@ -31,6 +36,7 @@ const NotePage = () => {
 
   const [showUrlInput, setShowUrlInput] = useState(false);
   const [showPasswordInput, setShowPasswordInput] = useState(false);
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
   // const [showPasswordText, setShowPasswordText] = useState(false);
 
   const [pathRef, setPathRef] = useState(null);
@@ -107,11 +113,11 @@ const NotePage = () => {
 
   // set password
   const handleSetPassword = async () => {
-    if (!pathRef || !passwordInput.trim()) return;
+    if (!pathRef || !passwordInput.trim() || password) return;
 
     await updateDoc(pathRef, { password: passwordInput.trim() });
     setPassword(passwordInput.trim());
-    setShowPasswordInput(false);
+    //setShowPasswordInput(false);
     setPasswordInput("");
   };
 
@@ -181,7 +187,13 @@ const NotePage = () => {
               Set Custom URL
             </button>
             <button
-              onClick={() => setShowPasswordInput((prev) => !prev)}
+              onClick={() => {
+                if (password) {
+                  setShowPasswordModal(true);
+                } else {
+                  setShowPasswordInput(true);
+                }
+              }}
               className="text-blue-500 underline text-sm"
             >
               Set Password
@@ -213,7 +225,7 @@ const NotePage = () => {
         </div>
       )}
 
-      {showPasswordInput && (
+      {showPasswordInput && !password && (
         <div className="mb-2">
           <input
             className="border p-2 w-full mb-2"
@@ -249,6 +261,23 @@ const NotePage = () => {
           value={text}
           onChange={handleChange}
           placeholder="Start writing your notes..."
+        />
+      )}
+
+      {showPasswordModal && (
+        <ManagePasswordModal
+          onClose={() => setShowPasswordModal(false)}
+          onRemovePassword={async () => {
+            if (!pathRef) return;
+            await updateDoc(pathRef, { password: "" });
+            setPassword("");
+            setShowPasswordModal(false);
+          }}
+          onOptOut={() => {
+            setIsUnlocked(false);
+            setShowPasswordModal(flase);
+          }}
+          isOwner={isOwner}
         />
       )}
     </main>
